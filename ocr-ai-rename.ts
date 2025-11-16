@@ -78,6 +78,16 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[^\p{L}\p{N} _-]/gu, "_");
 }
 
+function getUniqueOutPath(baseName: string): string {
+  let counter = 1;
+  let outPath = join(OUT_DIR, `${baseName}.pdf`);
+  while (existsSync(outPath)) {
+    outPath = join(OUT_DIR, `${baseName}_${counter}.pdf`);
+    counter++;
+  }
+  return outPath;
+}
+
 async function processPdfs() {
   const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
   for (const file of files) {
@@ -94,7 +104,9 @@ async function processPdfs() {
     const title = await retrySendToAI(text);
     const safeTitle = sanitizeFilename(title);
 
-    const outPath = join(OUT_DIR, `${safeTitle}.pdf`);
+    // Ensure uniqueness of output filename
+    const outPath = getUniqueOutPath(safeTitle);
+
     renameSync(ocrPath, outPath);
     console.log(`Renamed and moved to: ${outPath}`);
   }
