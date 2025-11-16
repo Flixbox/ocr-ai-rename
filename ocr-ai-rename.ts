@@ -18,7 +18,12 @@ mkdirSync(OCR_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 async function runOcrmypdf(input: string, output: string) {
-  const proc = Bun.spawn(["uvx", "ocrmypdf", input, output]);
+  const proc = Bun.spawn([
+    "uvx", "ocrmypdf",
+    "-O", "0",          // disable optimization
+    "--output-type", "pdfa", // still enforce PDF/A
+    input, output
+  ]);
   await proc.exited;
   if (!existsSync(output)) {
     throw new Error(`ocrmypdf did not produce output for ${input}`);
@@ -51,7 +56,7 @@ async function sendToAI(text: string): Promise<string> {
           role: "user", 
           content: `From the following OCR text, extract the sender or organization name and the document date. 
 Return ONLY a string in the format: YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>. Example: 2020-01-15 - Agentur für Arbeit - Arbeitsuchendmeldung. Umlauts like äöüß are safe.
-Do not add any other words or punctuation.\n\n${text}` 
+Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${text}` 
         }
       ],
     }),
