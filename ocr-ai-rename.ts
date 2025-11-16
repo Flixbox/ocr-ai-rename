@@ -60,7 +60,8 @@ Do not add any other words or punctuation.\n\n${text}`
 }
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9 _-]/g, "_");
+  // Allow all Unicode letters, numbers, spaces, underscores, and dashes
+  return name.replace(/[^\p{L}\p{N} _-]/gu, "_");
 }
 
 async function processPdfs() {
