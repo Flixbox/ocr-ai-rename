@@ -1,0 +1,7 @@
+in/
+ocr/
+out/
+.env
+ocr_output.txt
+bun.lock
+node_modules/

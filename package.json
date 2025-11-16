@@ -1,0 +1,27 @@
+{
+  "name": "ocr-ai-rename",
+  "author": "Flixbox",
+  "private": true,
+  "type": "module",
+  "description": "Renames PDF files using tesseract and AI",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "version": "0.0.1",
+  "engines": {
+    "bun": ">=1.3.2"
+  },
+  "scripts": {
+    "start": "bun run ocr-ai-rename.ts",
+    "postinstall": "touch tsconfig.json"
+  },
+  "dependencies": {
+    "bun": "1.3.2",
+    "dotenv": "17.2.3"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.2"
+  }
+}
