@@ -7,8 +7,10 @@ const IN_DIR = "in";
 const OCR_DIR = "ocr";
 const OUT_DIR = "out";
 
-const AI_API_URL = process.env.AI_API_URL!;
-const AI_API_KEY = process.env.AI_API_KEY!;
+const AI_API_URL = process.env["AI_API_URL"]!;
+const AI_API_KEY = process.env["AI_API_KEY"]!;
+const AI_MODEL = process.env["AI_MODEL"]!;
+
 
 // Ensure folders exist
 mkdirSync(IN_DIR, { recursive: true });
@@ -34,11 +36,11 @@ async function extractText(pdfPath: string): Promise<string> {
 }
 
 async function sendToAI(text: string): Promise<string> {
-  const model = process.env.AI_MODEL!;
-  const res = await fetch(process.env.AI_API_URL!, {
+  const model = AI_MODEL!;
+  const res = await fetch(AI_API_URL, {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.AI_API_KEY}`,
+      "Authorization": `Bearer ${AI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -55,8 +57,20 @@ Do not add any other words or punctuation.\n\n${text}`
     }),
   });
   if (!res.ok) throw new Error(`AI API error: ${res.statusText}`);
-  const data = await res.json();
+  const data: any = await res.json();
   return data.choices?.[0]?.message?.content?.trim() ?? "Untitled";
+}
+
+async function retrySendToAI(text: string, delayMs = 30000): Promise<string> {
+  while (true) {
+    try {
+      return await sendToAI(text);
+    } catch (err) {
+      console.error("AI request failed:", err);
+      console.log(`Retrying in ${delayMs / 1000} seconds...`);
+      await new Promise(res => setTimeout(res, delayMs));
+    }
+  }
 }
 
 function sanitizeFilename(name: string): string {
@@ -77,7 +91,7 @@ async function processPdfs() {
     const text = await extractText(ocrPath);
 
     console.log(`Sending text to AI API...`);
-    const title = await sendToAI(text);
+    const title = await retrySendToAI(text);
     const safeTitle = sanitizeFilename(title);
 
     const outPath = join(OUT_DIR, `${safeTitle}.pdf`);
