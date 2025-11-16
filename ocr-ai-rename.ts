@@ -20,8 +20,9 @@ mkdirSync(OUT_DIR, { recursive: true });
 async function runOcrmypdf(input: string, output: string) {
   const proc = Bun.spawn([
     "uvx", "ocrmypdf",
-    "-O", "0",          // disable optimization
-    "--output-type", "pdfa", // still enforce PDF/A
+    "-O", "0",              // disable optimization (avoid JPEG crash)
+    "--output-type", "pdfa",
+    "--redo-ocr",           // redo OCR even if text exists
     input, output
   ]);
   await proc.exited;
