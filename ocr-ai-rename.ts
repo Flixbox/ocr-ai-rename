@@ -1,5 +1,4 @@
-// ocr-rename.ts
-import { existsSync, mkdirSync, readdirSync, renameSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, renameSync, unlinkSync, watch } from "fs";
 import { join } from "path";
 import "dotenv/config";
 
@@ -10,7 +9,6 @@ const OUT_DIR = "out";
 const AI_API_URL = process.env["AI_API_URL"]!;
 const AI_API_KEY = process.env["AI_API_KEY"]!;
 const AI_MODEL = process.env["AI_MODEL"]!;
-
 
 // Ensure folders exist
 mkdirSync(IN_DIR, { recursive: true });
@@ -42,7 +40,6 @@ async function extractText(pdfPath: string): Promise<string> {
 }
 
 async function sendToAI(text: string): Promise<string> {
-  const model = AI_MODEL!;
   const res = await fetch(AI_API_URL, {
     method: "POST",
     headers: {
@@ -50,14 +47,14 @@ async function sendToAI(text: string): Promise<string> {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model,
+      model: AI_MODEL,
       messages: [
         { role: "system", content: "You are a helpful assistant." },
-        { 
-          role: "user", 
+        {
+          role: "user",
           content: `From the following OCR text, extract the sender or organization name and the document date. 
 Return ONLY a string in the format: YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>. Example: 2020-01-15 - Agentur für Arbeit - Arbeitsuchendmeldung. Umlauts like äöüß are safe.
-Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${text}` 
+Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${text}`
         }
       ],
     }),
@@ -94,12 +91,11 @@ function getUniqueOutPath(baseName: string): string {
   return outPath;
 }
 
-async function processPdfs() {
-  const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
-  for (const file of files) {
-    const inputPath = join(IN_DIR, file);
-    const ocrPath = join(OCR_DIR, file);
+async function processPdf(file: string) {
+  const inputPath = join(IN_DIR, file);
+  const ocrPath = join(OCR_DIR, file);
 
+  try {
     console.log(`Preprocessing ${inputPath} with ocrmypdf...`);
     await runOcrmypdf(inputPath, ocrPath);
 
@@ -110,14 +106,36 @@ async function processPdfs() {
     const title = await retrySendToAI(text);
     const safeTitle = sanitizeFilename(title);
 
-    // Ensure uniqueness of output filename
     const outPath = getUniqueOutPath(safeTitle);
 
     renameSync(ocrPath, outPath);
     console.log(`Renamed and moved to: ${outPath}`);
+
+    // Delete original input file
+    unlinkSync(inputPath);
+    console.log(`Deleted original input file: ${inputPath}`);
+  } catch (err) {
+    console.error(`Error processing ${file}:`, err);
   }
 }
 
-processPdfs().catch(err => {
-  console.error("Error:", err);
+async function processAllPdfs() {
+  const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
+  for (const file of files) {
+    await processPdf(file);
+  }
+}
+
+// Run once on startup
+processAllPdfs().catch(err => console.error("Startup error:", err));
+
+// Watch for new files
+watch(IN_DIR, { persistent: true }, (eventType, filename) => {
+  if (filename && filename.toLowerCase().endsWith(".pdf") && eventType === "rename") {
+    const inputPath = join(IN_DIR, filename);
+    if (existsSync(inputPath)) {
+      console.log(`New file detected: ${filename}`);
+      processPdf(filename);
+    }
+  }
 });
