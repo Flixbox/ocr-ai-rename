@@ -1,10 +1,11 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, unlinkSync, watch } from "fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, unlinkSync, watch, writeFileSync } from "fs";
 import { join } from "path";
 import "dotenv/config";
 
 const IN_DIR = "in";
 const OCR_DIR = "ocr";
 const OUT_DIR = "out";
+const TITLES_FILE = "titles.json";
 
 const AI_API_URL = process.env["AI_API_URL"]!;
 const AI_API_KEY = process.env["AI_API_KEY"]!;
@@ -15,12 +16,46 @@ mkdirSync(IN_DIR, { recursive: true });
 mkdirSync(OCR_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
+// --- Title persistence helpers ---
+function ensureTitlesFile() {
+  if (!existsSync(TITLES_FILE)) {
+    writeFileSync(TITLES_FILE, JSON.stringify([]));
+  }
+}
+
+function readTitles(): string[] {
+  ensureTitlesFile();
+  try {
+    const raw = readFileSync(TITLES_FILE, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+function writeTitles(titles: string[]) {
+  writeFileSync(TITLES_FILE, JSON.stringify(titles, null, 2));
+}
+
+function addTitle(title: string) {
+  const titles = readTitles();
+  titles.push(title);
+  writeTitles(titles);
+}
+
+// --- OCR + AI pipeline ---
 async function runOcrmypdf(input: string, output: string) {
   const proc = Bun.spawn([
     "uvx", "ocrmypdf",
-    "-O", "0",              // disable optimization (avoid JPEG crash)
+
+    // disable optimization (avoid JPEG crash)
+    "-O", "0",
+
     "--output-type", "pdfa",
-    "--redo-ocr",           // redo OCR even if text exists
+
+    // redo OCR even if text exists
+    "--redo-ocr",
+
     input, output
   ]);
   await proc.exited;
@@ -80,20 +115,31 @@ async function retrySendToAI(text: string, delayMs = 30000): Promise<string> {
 }
 
 function sanitizeFilename(name: string): string {
-  // Allow all Unicode letters, numbers, spaces, underscores, and dashes
   return name.replace(/[^\p{L}\p{N} _-]/gu, "_");
 }
 
+// --- Updated unique path logic using titles.json ---
 function getUniqueOutPath(baseName: string): string {
   let counter = 1;
-  let outPath = join(OUT_DIR, `${baseName}.pdf`);
-  while (existsSync(outPath)) {
-    outPath = join(OUT_DIR, `${baseName}_${counter}.pdf`);
+  let candidate = baseName;
+  let outPath = join(OUT_DIR, `${candidate}.pdf`);
+
+  // Always re-read titles.json to avoid race conditions
+  let titles = readTitles();
+
+  while (existsSync(outPath) || titles.includes(candidate)) {
+    candidate = `${baseName}_${counter}`;
+    outPath = join(OUT_DIR, `${candidate}.pdf`);
     counter++;
   }
+
+  // Persist the chosen title
+  addTitle(candidate);
+
   return outPath;
 }
 
+// --- Main processing ---
 async function processPdf(file: string) {
   const inputPath = join(IN_DIR, file);
   const ocrPath = join(OCR_DIR, file);
@@ -144,7 +190,7 @@ watch(IN_DIR, { persistent: true }, (eventType, filename) => {
         } else {
           console.warn(`File ${filename} no longer exists after delay.`);
         }
-      }, 10_000); // 10 second delay to avoid permission issues during download/sync
+      }, 10_000);  // 10 second delay to avoid permission issues during download/sync
     }
   }
 });

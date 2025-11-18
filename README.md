@@ -6,7 +6,7 @@ Includes a file watcher. Files placed in `in` will be automatically renamed. You
 
 - Requires:
   - scoop
-  - `scoop install bun uv poppler tesseract`
+  - `scoop install bun uv poppler tesseract qpdf ghostscript`
 
 - Run `bun i`
 - Rename `.env.example` to `.env`
