@@ -57,7 +57,7 @@ async function sendToAI(text: string): Promise<string> {
           role: "user",
           content: `From the following OCR text, extract the sender or organization name and the document date. 
 Return ONLY a string in the format: YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>. Example: 2020-01-15 - Agentur für Arbeit - Arbeitsuchendmeldung. Umlauts like äöüß are safe.
-Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${truncated}`
+Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling). Add labeled identifying numbers to the title, like billing IDs.\n\n${truncated}`
         }
       ],
     }),
