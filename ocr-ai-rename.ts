@@ -61,6 +61,19 @@ async function runGhostscript(input: string, output: string) {
 }
 
 // --- OCR + AI pipeline ---
+
+async function hasTextLayer(pdfPath: string): Promise<boolean> {
+  const txtPath = pdfPath.replace(/\.pdf$/i, ".check.txt");
+  const proc = Bun.spawn(["pdftotext", pdfPath, txtPath]);
+  await proc.exited;
+
+  if (!existsSync(txtPath)) return false;
+  const text = await Bun.file(txtPath).text();
+  unlinkSync(txtPath); // cleanup
+
+  return text.trim().length > 0;
+}
+
 async function runOcrmypdf(input: string, output: string) {
   const proc = Bun.spawn([
     "uvx", "ocrmypdf",
@@ -69,9 +82,6 @@ async function runOcrmypdf(input: string, output: string) {
     "-O", "0",
 
     "--output-type", "pdfa",
-
-    // redo OCR even if text exists
-    "--redo-ocr",
 
     input, output
   ]);
@@ -107,7 +117,7 @@ async function sendToAI(text: string): Promise<string> {
         { role: "system", content: "You are a helpful assistant." },
         {
           role: "user",
-          content: `From the following OCR text, extract the sender or organization name and the document date. 
+          content: `From the following OCR text, extract the sender or organization name and the document date [if any date part unknown: replace with zeroes]. 
 Return ONLY a string in the format: YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>. Example: 2020-01-15 - Agentur für Arbeit - Arbeitsuchendmeldung. Umlauts like äöüß are safe.
 Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling). Add labeled identifying numbers to the title, like billing IDs.\n\n${truncated}`
         }
@@ -166,8 +176,18 @@ async function processPdf(file: string) {
     console.log(`Cleaning ${inputPath} with Ghostscript...`);
     await runGhostscript(inputPath, cleanedPath);
 
-    console.log(`Preprocessing ${cleanedPath} with ocrmypdf...`);
-    await runOcrmypdf(cleanedPath, ocrPath);
+    // Check if cleaned PDF already has text
+    const alreadyHasText = await hasTextLayer(cleanedPath);
+
+    if (alreadyHasText) {
+      console.log(`Skipping OCR for ${cleanedPath}, text layer already present.`);
+      // Just copy cleaned file into OCR_DIR for consistency
+      renameSync(cleanedPath, ocrPath);
+    } else {
+      console.log(`Running OCR on ${cleanedPath}...`);
+      await runOcrmypdf(cleanedPath, ocrPath);
+      unlinkSync(cleanedPath); // cleanup only if OCR was run
+    }
 
     console.log(`Extracting text from ${ocrPath}...`);
     const text = await extractText(ocrPath);
@@ -184,12 +204,11 @@ async function processPdf(file: string) {
     // Delete original input file
     unlinkSync(inputPath);
     console.log(`Deleted original input file: ${inputPath}`);
-    unlinkSync(cleanedPath);
-    console.log(`Deleted cleaned intermediate file: ${cleanedPath}`);
   } catch (err) {
     console.error(`Error processing ${file}:`, err);
   }
 }
+
 
 async function processAllPdfs() {
   const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
