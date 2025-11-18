@@ -18,6 +18,26 @@ mkdirSync(CLEANED_DIR, { recursive: true });
 mkdirSync(OCR_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
+// --- Global processing queue ---
+const queue: string[] = [];
+let processing = false;
+
+function enqueue(file: string) {
+  queue.push(file);
+  if (!processing) {
+    processQueue();
+  }
+}
+
+async function processQueue() {
+  processing = true;
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    await processPdf(file);
+  }
+  processing = false;
+}
+
 // --- Title persistence helpers ---
 function ensureTitlesFile() {
   if (!existsSync(TITLES_FILE)) {
@@ -129,15 +149,23 @@ Do not add any other words or punctuation. Instead of using nonsense like Arbeit
   return data.choices?.[0]?.message?.content?.trim() ?? "Untitled";
 }
 
-async function retrySendToAI(text: string, delayMs = 30000): Promise<string> {
-  while (true) {
-    try {
-      return await sendToAI(text);
-    } catch (err) {
-      console.error("AI request failed:", err);
-      console.log(`Retrying in ${delayMs / 1000} seconds...`);
-      await new Promise(res => setTimeout(res, delayMs));
-    }
+async function retrySendToAI(
+  text: string,
+  delayMs = 61_000
+): Promise<string> {
+  try {
+    // Always wait at least delayMs
+    await new Promise(res => setTimeout(res, delayMs));
+    return await sendToAI(text);
+  } catch (err) {
+    console.error("AI request failed:", err);
+    console.log(`Retrying in ${Math.round(delayMs / 1000)} seconds...`);
+
+    await new Promise(res => setTimeout(res, delayMs));
+
+    // recurse with doubled delay, capped
+    const nextDelay = Math.min(delayMs * 2);
+    return retrySendToAI(text, nextDelay);
   }
 }
 
@@ -209,30 +237,27 @@ async function processPdf(file: string) {
   }
 }
 
-
-async function processAllPdfs() {
+// Run once on startup
+(async () => {
   const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
   for (const file of files) {
-    await processPdf(file);
+    enqueue(file);
   }
-}
-
-// Run once on startup
-processAllPdfs().catch(err => console.error("Startup error:", err));
+})();
 
 // Watch for new files
 watch(IN_DIR, { persistent: true }, (eventType, filename) => {
-  if (filename && filename.toLowerCase().endsWith(".pdf") && eventType === "rename") {
+  if (filename?.toLowerCase().endsWith(".pdf") && eventType === "rename") {
     const inputPath = join(IN_DIR, filename);
     if (existsSync(inputPath)) {
-      console.log(`New file detected: ${filename}, waiting 10 seconds before processing...`);
+      console.log(`New file detected: ${filename}, waiting 10 seconds before enqueue...`);
       setTimeout(() => {
         if (existsSync(inputPath)) {
-          processPdf(filename);
+          enqueue(filename);
         } else {
           console.warn(`File ${filename} no longer exists after delay.`);
         }
-      }, 10_000);  // 10 second delay to avoid permission issues during download/sync
+      }, 10_000);
     }
   }
 });
