@@ -3,6 +3,7 @@ import { join } from "path";
 import "dotenv/config";
 
 const IN_DIR = "in";
+const FORCE_DIR = "force-processing";
 const CLEANED_DIR = "cleaned";
 const OCR_DIR = "ocr";
 const OUT_DIR = "out";
@@ -14,16 +15,18 @@ const AI_MODEL = process.env["AI_MODEL"]!;
 
 // Ensure folders exist
 mkdirSync(IN_DIR, { recursive: true });
+mkdirSync(FORCE_DIR, { recursive: true });
 mkdirSync(CLEANED_DIR, { recursive: true });
 mkdirSync(OCR_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
 // --- Global processing queue ---
-const queue: string[] = [];
+type QueueItem = { file: string; force: boolean };
+const queue: QueueItem[] = [];
 let processing = false;
 
-function enqueue(file: string) {
-  queue.push(file);
+function enqueue(file: string, force = false) {
+  queue.push({ file, force });
   if (!processing) {
     processQueue();
   }
@@ -32,8 +35,8 @@ function enqueue(file: string) {
 async function processQueue() {
   processing = true;
   while (queue.length > 0) {
-    const file = queue.shift()!;
-    await processPdf(file);
+    const { file, force } = queue.shift()!;
+    await processPdf(file, force);
   }
   processing = false;
 }
@@ -104,6 +107,9 @@ async function runOcrmypdf(input: string, output: string) {
     "--output-type", "pdfa",
 
     "--rotate-pages",
+
+    // redo OCR even if text exists
+    "--redo-ocr",
 
     input, output
   ]);
@@ -197,8 +203,8 @@ function getUniqueOutPath(baseName: string): string {
 }
 
 // --- Main processing ---
-async function processPdf(file: string) {
-  const inputPath = join(IN_DIR, file);
+async function processPdf(file: string, force: boolean) {
+  const inputPath = force ? join(FORCE_DIR, file) : join(IN_DIR, file);
   const cleanedPath = join(CLEANED_DIR, file);
   const ocrPath = join(OCR_DIR, file);
 
@@ -206,19 +212,24 @@ async function processPdf(file: string) {
     console.log(`Cleaning ${inputPath} with Ghostscript...`);
     await runGhostscript(inputPath, cleanedPath);
 
-    // Check if cleaned PDF already has text
-    const alreadyHasText = await hasTextLayer(cleanedPath);
-
-    if (alreadyHasText) {
-      console.log(`Skipping OCR for ${cleanedPath}, text layer already present.`);
-      // Just copy cleaned file into OCR_DIR for consistency
-      renameSync(cleanedPath, ocrPath);
-    } else {
-      console.log(`Running OCR on ${cleanedPath}...`);
+    if (force) {
+      console.log(`Force-processing enabled: always running OCR on ${cleanedPath}...`);
       await runOcrmypdf(cleanedPath, ocrPath);
-      unlinkSync(cleanedPath); // cleanup only if OCR was run
-    }
+      unlinkSync(cleanedPath);
+    } else {
+      const alreadyHasText = await hasTextLayer(cleanedPath);
 
+      if (alreadyHasText) {
+        console.log(`Skipping OCR for ${cleanedPath}, text layer already present.`);
+        // Just copy cleaned file into OCR_DIR for consistency
+        renameSync(cleanedPath, ocrPath);
+      } else {
+        console.log(`Running OCR on ${cleanedPath}...`);
+        await runOcrmypdf(cleanedPath, ocrPath);
+        unlinkSync(cleanedPath);
+      }
+    }
+    
     console.log(`Extracting text from ${ocrPath}...`);
     const text = await extractText(ocrPath);
 
@@ -239,26 +250,35 @@ async function processPdf(file: string) {
   }
 }
 
-// Run once on startup
+// --- Startup scan ---
 (async () => {
   const files = readdirSync(IN_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
-  for (const file of files) {
-    enqueue(file);
-  }
+  for (const file of files) enqueue(file, false);
+
+  const forceFiles = readdirSync(FORCE_DIR).filter(f => f.toLowerCase().endsWith(".pdf"));
+  for (const file of forceFiles) enqueue(file, true);
 })();
 
-// Watch for new files
+// --- Watchers ---
 watch(IN_DIR, { persistent: true }, (eventType, filename) => {
   if (filename?.toLowerCase().endsWith(".pdf") && eventType === "rename") {
     const inputPath = join(IN_DIR, filename);
     if (existsSync(inputPath)) {
-      console.log(`New file detected: ${filename}, waiting 10 seconds before enqueue...`);
+      console.log(`New file detected in IN_DIR: ${filename}, waiting 10 seconds before enqueue...`);
       setTimeout(() => {
-        if (existsSync(inputPath)) {
-          enqueue(filename);
-        } else {
-          console.warn(`File ${filename} no longer exists after delay.`);
-        }
+        if (existsSync(inputPath)) enqueue(filename, false);
+      }, 10_000);
+    }
+  }
+});
+
+watch(FORCE_DIR, { persistent: true }, (eventType, filename) => {
+  if (filename?.toLowerCase().endsWith(".pdf") && eventType === "rename") {
+    const inputPath = join(FORCE_DIR, filename);
+    if (existsSync(inputPath)) {
+      console.log(`New file detected in FORCE_DIR: ${filename}, waiting 10 seconds before enqueue...`);
+      setTimeout(() => {
+        if (existsSync(inputPath)) enqueue(filename, true);
       }, 10_000);
     }
   }
