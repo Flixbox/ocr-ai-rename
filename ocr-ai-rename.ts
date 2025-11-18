@@ -103,6 +103,8 @@ async function runOcrmypdf(input: string, output: string) {
 
     "--output-type", "pdfa",
 
+    "--rotate-pages",
+
     input, output
   ]);
   await proc.exited;
