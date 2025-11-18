@@ -107,6 +107,7 @@ async function runOcrmypdf(input: string, output: string) {
     "--output-type", "pdfa",
 
     "--rotate-pages",
+    "--rotate-pages-threshold", "7",
 
     // redo OCR even if text exists
     "--redo-ocr",
