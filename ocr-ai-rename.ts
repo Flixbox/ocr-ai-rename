@@ -137,8 +137,14 @@ watch(IN_DIR, { persistent: true }, (eventType, filename) => {
   if (filename && filename.toLowerCase().endsWith(".pdf") && eventType === "rename") {
     const inputPath = join(IN_DIR, filename);
     if (existsSync(inputPath)) {
-      console.log(`New file detected: ${filename}`);
-      processPdf(filename);
+      console.log(`New file detected: ${filename}, waiting 10 seconds before processing...`);
+      setTimeout(() => {
+        if (existsSync(inputPath)) {
+          processPdf(filename);
+        } else {
+          console.warn(`File ${filename} no longer exists after delay.`);
+        }
+      }, 10_000); // 10 second delay to avoid permission issues during download/sync
     }
   }
 });
