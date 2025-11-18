@@ -40,6 +40,9 @@ async function extractText(pdfPath: string): Promise<string> {
 }
 
 async function sendToAI(text: string): Promise<string> {
+  // Cut off at ~2000 characters
+  const truncated = text.length > 2000 ? text.slice(0, 2000) : text;
+
   const res = await fetch(AI_API_URL, {
     method: "POST",
     headers: {
@@ -54,7 +57,7 @@ async function sendToAI(text: string): Promise<string> {
           role: "user",
           content: `From the following OCR text, extract the sender or organization name and the document date. 
 Return ONLY a string in the format: YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>. Example: 2020-01-15 - Agentur für Arbeit - Arbeitsuchendmeldung. Umlauts like äöüß are safe.
-Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${text}`
+Do not add any other words or punctuation. Instead of using nonsense like Arbeitsuntähnigkeitsbescheinigung, use Arbeitsunfähigkeitsbescheinigung (fix spelling).\n\n${truncated}`
         }
       ],
     }),
