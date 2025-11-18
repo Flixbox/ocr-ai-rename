@@ -6,3 +6,4 @@ ocr_output.txt
 bun.lock
 node_modules/
 titles.json
+cleaned/
