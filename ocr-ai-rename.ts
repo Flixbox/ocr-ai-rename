@@ -3,6 +3,7 @@ import { join } from "path";
 import "dotenv/config";
 
 const IN_DIR = "in";
+const CLEANED_DIR = "cleaned";
 const OCR_DIR = "ocr";
 const OUT_DIR = "out";
 const TITLES_FILE = "titles.json";
@@ -13,6 +14,7 @@ const AI_MODEL = process.env["AI_MODEL"]!;
 
 // Ensure folders exist
 mkdirSync(IN_DIR, { recursive: true });
+mkdirSync(CLEANED_DIR, { recursive: true });
 mkdirSync(OCR_DIR, { recursive: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
@@ -41,6 +43,21 @@ function addTitle(title: string) {
   const titles = readTitles();
   titles.push(title);
   writeTitles(titles);
+}
+
+// --- Ghostscript cleaning step ---
+async function runGhostscript(input: string, output: string) {
+  const proc = Bun.spawn([
+    "gs",
+    "-o", output,
+    "-sDEVICE=pdfwrite",
+    "-dPDFSETTINGS=/prepress",
+    input
+  ]);
+  await proc.exited;
+  if (!existsSync(output)) {
+    throw new Error(`Ghostscript did not produce output for ${input}`);
+  }
 }
 
 // --- OCR + AI pipeline ---
@@ -142,11 +159,15 @@ function getUniqueOutPath(baseName: string): string {
 // --- Main processing ---
 async function processPdf(file: string) {
   const inputPath = join(IN_DIR, file);
+  const cleanedPath = join(CLEANED_DIR, file);
   const ocrPath = join(OCR_DIR, file);
 
   try {
-    console.log(`Preprocessing ${inputPath} with ocrmypdf...`);
-    await runOcrmypdf(inputPath, ocrPath);
+    console.log(`Cleaning ${inputPath} with Ghostscript...`);
+    await runGhostscript(inputPath, cleanedPath);
+
+    console.log(`Preprocessing ${cleanedPath} with ocrmypdf...`);
+    await runOcrmypdf(cleanedPath, ocrPath);
 
     console.log(`Extracting text from ${ocrPath}...`);
     const text = await extractText(ocrPath);
@@ -163,6 +184,8 @@ async function processPdf(file: string) {
     // Delete original input file
     unlinkSync(inputPath);
     console.log(`Deleted original input file: ${inputPath}`);
+    unlinkSync(cleanedPath);
+    console.log(`Deleted cleaned intermediate file: ${cleanedPath}`);
   } catch (err) {
     console.error(`Error processing ${file}:`, err);
   }
