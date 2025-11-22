@@ -23,3 +23,8 @@ I recommend using Groq with openai/gpt-oss-120b. It has rate limits, but the scr
 - Run `bun start`
 - This creates some folders
 - Place documents in `in`
+
+
+Auto rotation will only be applied if the PDF does *not* already have an OCR layer.
+
+If you want to force auto rotation and OCR, place the file in the respective `force_processing` folder.
