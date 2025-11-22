@@ -12,6 +12,7 @@ I recommend using Groq with openai/gpt-oss-120b. It has rate limits, but the scr
   - scoop
   - `scoop bucket add extras`
   - `scoop install bun uv poppler tesseract qpdf ghostscript`
+  - pdftotext, ocrmypdf
 
 - Navigate to this folder
 - Run `bun i`
