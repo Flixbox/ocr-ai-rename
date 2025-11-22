@@ -19,7 +19,8 @@ Fully free approach: I recommend using Groq with openai/gpt-oss-120b. It has rat
 - Navigate to this folder
 - Run `bun i`
 - Rename `.env.example` to `.env`
-- Fill it with your data
+- Fill `.env` with your data
+- Optional: Adjust the prompt in `ocr-ai-rename.ts` 
 
 # Start
 
