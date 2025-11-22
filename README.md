@@ -1,5 +1,7 @@
 Renames PDF files to `YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>`.
 
+Adjust the prompt in the code (then restart the program) in order to get a different name. 
+
 Also applies auto-rotation and OCR to the file.
 
 Includes a file watcher. Files placed in `in` will be automatically renamed. Your renamed files will be placed in `out`, you can stop the script once it's done or leave it running and place new files in `in`.
