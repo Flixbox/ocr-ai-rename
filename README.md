@@ -23,4 +23,3 @@ I recommend using Groq with openai/gpt-oss-120b. It has rate limits, but the scr
 - Run `bun start`
 - This creates some folders
 - Place documents in `in`
-- Run `bun start`
