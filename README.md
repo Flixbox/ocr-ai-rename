@@ -13,6 +13,7 @@ I recommend using Groq with openai/gpt-oss-120b. It has rate limits, but the scr
   - `scoop bucket add extras`
   - `scoop install bun uv poppler tesseract qpdf ghostscript`
 
+- Navigate to this folder
 - Run `bun i`
 - Rename `.env.example` to `.env`
 - Fill it with your data
