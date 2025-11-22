@@ -1,6 +1,10 @@
 Renames PDF files to `YYYY-MM-DD - <Sender/Organization name> - <Sensible Title>`.
 
+Also applies auto-rotation and OCR to the file.
+
 Includes a file watcher. Files placed in `in` will be automatically renamed. Your renamed files will be placed in `out`, you can stop the script once it's done or leave it running and place new files in `in`.
+
+I recommend using Groq with openai/gpt-oss-120b. It has rate limits, but the script will automatically wait in order to comply.
 
 # Installation
 
