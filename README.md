@@ -14,6 +14,8 @@ Fully free approach: I recommend using Groq with openai/gpt-oss-120b. It has rat
   - scoop
   - `scoop bucket add extras`
   - `scoop install bun uv poppler tesseract tesseract-languages qpdf ghostscript`
+  - `scoop reset tesseract-languages` (to make sure the languages are linked correctly)
+  - `pwsh .\tesseract_setup.ps1`
 
 - Navigate to this folder
 - Run `bun i`
