@@ -13,7 +13,7 @@ Fully free approach: I recommend using Groq with openai/gpt-oss-120b. It has rat
 - Requires:
   - scoop
   - `scoop bucket add extras`
-  - `scoop install bun uv poppler tesseract qpdf ghostscript`
+  - `scoop install bun uv poppler tesseract tesseract-languages qpdf ghostscript`
 
 - Navigate to this folder
 - Run `bun i`
