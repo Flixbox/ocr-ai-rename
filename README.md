@@ -14,7 +14,6 @@ Fully free approach: I recommend using Groq with openai/gpt-oss-120b. It has rat
   - scoop
   - `scoop bucket add extras`
   - `scoop install bun uv poppler tesseract qpdf ghostscript`
-  - pdftotext (should be auto-installed with poppler)
 
 - Navigate to this folder
 - Run `bun i`
